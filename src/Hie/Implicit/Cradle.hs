@@ -173,7 +173,7 @@ findFileUpwards p dir = do
 findFile :: (FilePath -> Bool) -> FilePath -> IO [FilePath]
 findFile p dir = do
   b <- doesDirectoryExist dir
-  if b then getFiles >>= filterM doesPredFileExist else return []
+  if b then getFiles else pure []
   where
     getFiles = filter p <$> getDirectoryContents dir
     doesPredFileExist file = doesFileExist $ dir </> file
