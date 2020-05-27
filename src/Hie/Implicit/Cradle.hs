@@ -42,6 +42,7 @@ import System.IO.Temp
 import System.Info.Extra (isWindows)
 import System.PosixCompat.Files
 import System.Process
+import Debug.Trace
 
 -- | Given root\/foo\/bar.hs, load an implicit cradle
 loadImplicitHieCradle :: FilePath -> IO (Cradle a)
@@ -65,11 +66,11 @@ implicitConfig' fp =
     <$> biosWorkDir fp
     --   <|> (Obelisk,) <$> obeliskWorkDir fp
     --   <|> (Bazel,) <$> rulesHaskellWorkDir fp
-    -- <|> (cabalExecutable >> cabalProjectDir fp >> cabalDistDir fp >>= cabal)
-    <|> (stackExecutable >> stackYamlDir fp >> stackWorkDir fp >>= stack)
-    -- <|> (cabalExecutable >> cabalProjectDir fp >>= cabal)
-    <|> (stackExecutable >> stackYamlDir fp >>= stack)
-    -- <|> (cabalExecutable >> cabalFile fp >>= cabal)
+    <|> (cabalExecutable >> cabalProjectDir fp >> cabalDistDir fp >>= trace "cabalDistDir 1" cabal)
+    <|> (stackExecutable >> stackYamlDir fp >> stackWorkDir fp >>= trace "stackWorkDir 2" stack)
+    <|> (cabalExecutable >> cabalProjectDir fp >>= trace "cabalProjectDir 3"cabal)
+    <|> (stackExecutable >> stackYamlDir fp >>= trace "stackYamlDir 4" stack)
+    <|> (cabalExecutable >> cabalFile fp >>= trace "cabalFile 5" cabal)
   where
     readPkgs f gp p = do
       cfs <- gp p
