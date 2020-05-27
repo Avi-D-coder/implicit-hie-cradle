@@ -54,6 +54,7 @@ library
     , yaml                  >=0.8.32 && <0.12
 
   default-language: Haskell2010
+  ghc-options: -Wall -Wincomplete-record-updates -Wincomplete-uni-patterns -fno-warn-unused-imports -fno-warn-unused-binds -fno-warn-name-shadowing -fwarn-redundant-constraints
 
 test-suite implicit-hie-cradle-test
   type:             exitcode-stdio-1.0

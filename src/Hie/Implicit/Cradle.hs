@@ -44,7 +44,7 @@ import System.PosixCompat.Files
 import System.Process
 
 -- | Given root\/foo\/bar.hs, load an implicit cradle
-loadImplicitHieCradle :: Show a => FilePath -> IO (Cradle a)
+loadImplicitHieCradle :: FilePath -> IO (Cradle a)
 loadImplicitHieCradle wfile = do
   let wdir = takeDirectory wfile
   cfg <- runMaybeT (implicitConfig wdir)
@@ -87,17 +87,6 @@ implicitConfig' fp =
 -- Cabal Cradle
 -- Works for new-build by invoking `v2-repl` does not support components
 -- yet.
-cabalCradle :: FilePath -> Maybe String -> Cradle a
-cabalCradle wdir mc =
-  Cradle
-    { cradleRootDir = wdir,
-      cradleOptsProg =
-        CradleAction
-          { actionName = Types.Cabal,
-            runCradle = cabalAction wdir mc
-          }
-    }
-
 cabalCradleDependencies :: FilePath -> IO [FilePath]
 cabalCradleDependencies rootDir = do
   cabalFiles <- findCabalFiles rootDir
@@ -108,100 +97,10 @@ findCabalFiles wdir = do
   dirContent <- listDirectory wdir
   return $ filter ((== ".cabal") . takeExtension) dirContent
 
-processCabalWrapperArgs :: [String] -> Maybe (FilePath, [String])
-processCabalWrapperArgs args =
-  case args of
-    (dir : ghc_args) ->
-      let final_args =
-            removeVerbosityOpts
-              $ removeRTS
-              $ removeInteractive ghc_args
-       in Just (dir, final_args)
-    _ -> Nothing
-
 -- | GHC process information.
 -- Consists of the filepath to the ghc executable and
 -- arguments to the executable.
 type GhcProc = (FilePath, [String])
-
--- generate a fake GHC that can be passed to cabal
--- when run with --interactive, it will print out its
--- command-line arguments and exit
-withCabalWrapperTool :: GhcProc -> FilePath -> (FilePath -> IO a) -> IO a
-withCabalWrapperTool (ghcPath, ghcArgs) wdir k =
-  if isWindows
-    then do
-      cacheDir <- getCacheDir ""
-      let srcHash = show (fingerprintString cabalWrapperHs)
-      let wrapper_name = "wrapper-" ++ srcHash
-      let wrapper_fp = cacheDir </> wrapper_name <.> "exe"
-      exists <- doesFileExist wrapper_fp
-      unless exists $ withSystemTempDirectory "hie-bios" $ \tmpDir -> do
-        createDirectoryIfMissing True cacheDir
-        let wrapper_hs = cacheDir </> wrapper_name <.> "hs"
-        writeFile wrapper_hs cabalWrapperHs
-        let ghc =
-              ( proc ghcPath $
-                  ghcArgs ++ ["-rtsopts=ignore", "-outputdir", tmpDir, "-o", wrapper_fp, wrapper_hs]
-              )
-                { cwd = Just wdir
-                }
-        readCreateProcess ghc "" >>= putStr
-      setMode wrapper_fp
-      k wrapper_fp
-    else
-      withSystemTempFile
-        "bios-wrapper"
-        ( \loc h -> do
-            hPutStr h cabalWrapper
-            hClose h
-            setMode loc
-            k loc
-        )
-  where
-    setMode wrapper_fp = setFileMode wrapper_fp accessModes
-
-cabalAction :: FilePath -> Maybe String -> LoggingFunction -> FilePath -> IO (CradleLoadResult ComponentOptions)
-cabalAction work_dir mc l fp =
-  withCabalWrapperTool ("ghc", []) work_dir $ \wrapper_fp -> do
-    let cab_args = ["v2-repl", "--with-compiler", wrapper_fp, fromMaybe (fixTargetPath fp) mc]
-    (ex, output, stde, args) <-
-      readProcessWithOutputFile l work_dir "cabal" cab_args
-    deps <- cabalCradleDependencies work_dir
-    case processCabalWrapperArgs args of
-      Nothing ->
-        pure $
-          CradleFail
-            ( CradleError
-                ex
-                [ "Failed to parse result of calling cabal",
-                  unlines output,
-                  unlines stde,
-                  unlines args
-                ]
-            )
-      Just (componentDir, final_args) -> pure $ makeCradleResult (ex, stde, componentDir, final_args) deps
-  where
-    -- Need to make relative on Windows, due to a Cabal bug with how it
-    -- parses file targets with a C: drive in it
-    fixTargetPath x
-      | isWindows && hasDrive x = makeRelative work_dir x
-      | otherwise = x
-
-removeInteractive :: [String] -> [String]
-removeInteractive = filter (/= "--interactive")
-
--- Strip out any ["+RTS", ..., "-RTS"] sequences in the command string list.
-removeRTS :: [String] -> [String]
-removeRTS ("+RTS" : xs) =
-  case dropWhile (/= "-RTS") xs of
-    [] -> []
-    (_ : ys) -> removeRTS ys
-removeRTS (y : ys) = y : removeRTS ys
-removeRTS [] = []
-
-removeVerbosityOpts :: [String] -> [String]
-removeVerbosityOpts = filter ((&&) <$> (/= "-v0") <*> (/= "-w"))
 
 cabalExecutable :: MaybeT IO FilePath
 cabalExecutable = MaybeT $ findExecutable "cabal"
@@ -226,50 +125,10 @@ cabalFile = findFileUpwards isCabal
 -- Stack Cradle
 -- Works for by invoking `stack repl` with a wrapper script
 
-stackCradle :: FilePath -> Maybe String -> Cradle a
-stackCradle wdir mc =
-  Cradle
-    { cradleRootDir = wdir,
-      cradleOptsProg =
-        CradleAction
-          { actionName = Types.Stack,
-            runCradle = stackAction wdir mc
-          }
-    }
-
 stackCradleDependencies :: FilePath -> IO [FilePath]
 stackCradleDependencies wdir = do
   cabalFiles <- findCabalFiles wdir
   return $ cabalFiles ++ ["package.yaml", "stack.yaml"]
-
-stackAction :: FilePath -> Maybe String -> LoggingFunction -> FilePath -> IO (CradleLoadResult ComponentOptions)
-stackAction work_dir mc l _fp = do
-  let ghcProcArgs = ("stack", ["exec", "ghc", "--"])
-  -- Same wrapper works as with cabal
-  withCabalWrapperTool ghcProcArgs work_dir $ \wrapper_fp -> do
-    (ex1, _stdo, stde, args) <-
-      readProcessWithOutputFile
-        l
-        work_dir
-        "stack"
-        $ ["repl", "--no-nix-pure", "--with-ghc", wrapper_fp]
-          ++ catMaybes [mc]
-    (ex2, pkg_args, stdr, _) <-
-      readProcessWithOutputFile l work_dir "stack" ["path", "--ghc-package-path"]
-    let split_pkgs = concatMap splitSearchPath pkg_args
-        pkg_ghc_args = concatMap (\p -> ["-package-db", p]) split_pkgs
-    deps <- stackCradleDependencies work_dir
-    return $ case processCabalWrapperArgs args of
-      Nothing ->
-        CradleFail
-          ( CradleError ex1 $
-              ( "Failed to parse result of calling stack"
-                  : stde
-              )
-                ++ args
-          )
-      Just (componentDir, ghc_args) ->
-        makeCradleResult (combineExitCodes [ex1, ex2], stde ++ stdr, componentDir, ghc_args ++ pkg_ghc_args) deps
 
 combineExitCodes :: [ExitCode] -> ExitCode
 combineExitCodes = foldr go ExitSuccess
