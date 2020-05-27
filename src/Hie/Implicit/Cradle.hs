@@ -65,11 +65,11 @@ implicitConfig' fp =
     <$> biosWorkDir fp
     --   <|> (Obelisk,) <$> obeliskWorkDir fp
     --   <|> (Bazel,) <$> rulesHaskellWorkDir fp
-    <|> (cabalExecutable >> cabalProjectDir fp >> cabalDistDir fp >>= cabal)
+    -- <|> (cabalExecutable >> cabalProjectDir fp >> cabalDistDir fp >>= cabal)
     <|> (stackExecutable >> stackYamlDir fp >> stackWorkDir fp >>= stack)
-    <|> (cabalExecutable >> cabalProjectDir fp >>= cabal)
+    -- <|> (cabalExecutable >> cabalProjectDir fp >>= cabal)
     <|> (stackExecutable >> stackYamlDir fp >>= stack)
-    <|> (cabalExecutable >> cabalFile fp >>= cabal)
+    -- <|> (cabalExecutable >> cabalFile fp >>= cabal)
   where
     readPkgs f gp p = do
       cfs <- gp p
