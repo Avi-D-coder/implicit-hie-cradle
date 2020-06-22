@@ -3,4 +3,4 @@ packages: .
 source-repository-package
     type: git
     location: https://github.com/mpickering/hie-bios
-    tag: a852cffb0deb306cd1e1fe02aa50d50c77aeb15d
+    tag: 18c8a0ce28abf494cf710300fa81db100f34483b

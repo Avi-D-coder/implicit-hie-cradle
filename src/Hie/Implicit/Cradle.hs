@@ -60,7 +60,7 @@ implicitConfig fp = do
 implicitConfig' :: FilePath -> MaybeT IO (CradleType a, FilePath)
 implicitConfig' fp =
   ( \wdir ->
-      (Bios (wdir </> ".hie-bios") Nothing, wdir)
+      (Bios (Program $ wdir </> ".hie-bios") Nothing, wdir)
   )
     <$> biosWorkDir fp
     --   <|> (Obelisk,) <$> obeliskWorkDir fp
