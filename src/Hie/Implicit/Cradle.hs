@@ -23,7 +23,7 @@ import qualified Data.Text as T
 import Data.Void
 import qualified Data.Yaml as Yaml
 import GHC.Fingerprint (fingerprintString)
-import HIE.Bios.Config
+import HIE.Bios.Config hiding (cabalComponent, stackComponent)
 import HIE.Bios.Cradle
 import HIE.Bios.Environment (getCacheDir)
 import HIE.Bios.Types hiding (ActionName (..))
@@ -60,7 +60,7 @@ implicitConfig fp = do
 implicitConfig' :: FilePath -> MaybeT IO (CradleType a, FilePath)
 implicitConfig' fp =
   ( \wdir ->
-      (Bios (wdir </> ".hie-bios") Nothing, wdir)
+      (Bios (Program $ wdir </> ".hie-bios") Nothing Nothing, wdir)
   )
     <$> biosWorkDir fp
     --   <|> (Obelisk,) <$> obeliskWorkDir fp
@@ -79,10 +79,13 @@ implicitConfig' fp =
       c <- cn <$> readPkgs cc gp p
       pure (c, p)
     cabal :: FilePath -> MaybeT IO (CradleType a, FilePath)
-    cabal = build CabalMulti cabalComponent cabalPkgs
-    stack = build StackMulti stackComponent stackYamlPkgs
+    cabal = build (CabalMulti mempty) cabalComponent' cabalPkgs
+    stack :: FilePath -> MaybeT IO (CradleType a, FilePath)
+    stack = build (StackMulti mempty) stackComponent' stackYamlPkgs
     components f (Package n cs) = map (f n) cs
 
+    cabalComponent' n c = CabalType . Just <$> cabalComponent n c
+    stackComponent' n c = flip StackType Nothing . Just <$> stackComponent n c
 ------------------------------------------------------------------------
 -- Cabal Cradle
 -- Works for new-build by invoking `v2-repl` does not support components
