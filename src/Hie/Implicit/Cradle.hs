@@ -109,7 +109,7 @@ cabalExecutable :: MaybeT IO FilePath
 cabalExecutable = MaybeT $ findExecutable "cabal"
 
 cabalDistDir :: FilePath -> MaybeT IO FilePath
-cabalDistDir = findFileUpwards isCabal
+cabalDistDir = findSubdirUpwards isCabal
   where
     -- TODO do old style dist builds work?
     isCabal name = name == "dist-newstyle" || name == "dist"
@@ -143,7 +143,7 @@ stackExecutable :: MaybeT IO FilePath
 stackExecutable = MaybeT $ findExecutable "stack"
 
 stackWorkDir :: FilePath -> MaybeT IO FilePath
-stackWorkDir = findFileUpwards isStack
+stackWorkDir = findSubdirUpwards isStack
   where
     isStack name = name == ".stack-work"
 
@@ -152,33 +152,46 @@ stackYamlDir = findFileUpwards isStack
   where
     isStack name = name == "stack.yaml"
 
+-- | Searches upwards for the first directory containing a subdirectory
+-- to match the predicate.
+findSubdirUpwards :: (FilePath -> Bool) -> FilePath -> MaybeT IO FilePath
+findSubdirUpwards p dir = findContentUpwards p' dir
+  where p' subdir = do
+          exists <- doesDirectoryExist $ dir </> subdir
+          return $ (p subdir) && exists
+
 -- | Searches upwards for the first directory containing a file to match
 -- the predicate.
 findFileUpwards :: (FilePath -> Bool) -> FilePath -> MaybeT IO FilePath
-findFileUpwards p dir = do
+findFileUpwards p dir = findContentUpwards p' dir
+  where p' file = do
+          exists <- doesFileExist $ dir </> file
+          return $ (p file) && exists
+
+findContentUpwards :: (FilePath -> IO Bool) -> FilePath -> MaybeT IO FilePath
+findContentUpwards p dir = do
   cnts <-
     liftIO $
       handleJust
         -- Catch permission errors
         (\(e :: IOError) -> if isPermissionError e then Just [] else Nothing)
         pure
-        (findFile p dir)
+        (findContent p dir)
   case cnts of
     []
       | dir' == dir -> fail "No cabal files"
-      | otherwise -> findFileUpwards p dir'
+      | otherwise -> findContentUpwards p dir'
     _ : _ -> return dir
   where
     dir' = takeDirectory dir
 
 -- | Sees if any file in the directory matches the predicate
-findFile :: (FilePath -> Bool) -> FilePath -> IO [FilePath]
-findFile p dir = do
+findContent :: (FilePath -> IO Bool) -> FilePath -> IO [FilePath]
+findContent p dir = do
   b <- doesDirectoryExist dir
   if b then getFiles else pure []
   where
-    getFiles = filter p <$> getDirectoryContents dir
-    doesPredFileExist file = doesFileExist $ dir </> file
+    getFiles = getDirectoryContents dir >>= filterM p
 
 biosWorkDir :: FilePath -> MaybeT IO FilePath
 biosWorkDir = findFileUpwards (".hie-bios" ==)
