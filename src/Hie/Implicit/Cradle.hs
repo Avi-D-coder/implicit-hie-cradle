@@ -67,7 +67,7 @@ implicitConfig' fp =
     --   <|> (Bazel,) <$> rulesHaskellWorkDir fp
     <|> (cabalExecutable >> cabalProjectDir fp >> cabalDistDir fp >>= cabal)
     <|> (stackExecutable >> stackYamlDir fp >> stackWorkDir fp >>= stack)
-    <|> (cabalExecutable >> cabalProjectDir fp >>= cabal)
+    <|> (cabalExecutable >> (cabalProjectDir fp <|> cabalDistDir fp) >>= cabal)
     <|> (stackExecutable >> stackYamlDir fp >>= stack)
     <|> (cabalExecutable >> cabalFile fp >>= cabal)
   where
