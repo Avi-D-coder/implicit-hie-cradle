@@ -16,32 +16,17 @@ import Control.Exception (handleJust)
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
-import Data.List
 import Data.Maybe
-import Data.Ord (Down (..))
-import qualified Data.Text as T
 import Data.Void
-import qualified Data.Yaml as Yaml
-import GHC.Fingerprint (fingerprintString)
 import HIE.Bios.Config hiding (cabalComponent, stackComponent)
 import HIE.Bios.Cradle
-import HIE.Bios.Environment (getCacheDir)
 import HIE.Bios.Types hiding (ActionName (..))
-import qualified HIE.Bios.Types as Types
-import HIE.Bios.Wrappers
 import Hie.Cabal.Parser
 import Hie.Locate
 import Hie.Yaml
 import System.Directory hiding (findFile)
-import System.Environment
-import System.Exit
 import System.FilePath
-import System.IO
 import System.IO.Error (isPermissionError)
-import System.IO.Temp
-import System.Info.Extra (isWindows)
-import System.PosixCompat.Files
-import System.Process
 
 -- | Given root\/foo\/bar.hs, load an implicit cradle
 loadImplicitHieCradle :: FilePath -> IO (Cradle a)
@@ -86,24 +71,8 @@ implicitConfig' fp =
 
     cabalComponent' n c = CabalType . Just <$> cabalComponent n c
     stackComponent' n c = flip StackType Nothing . Just <$> stackComponent n c
+
 ------------------------------------------------------------------------
--- Cabal Cradle
--- Works for new-build by invoking `v2-repl` does not support components
--- yet.
-cabalCradleDependencies :: FilePath -> IO [FilePath]
-cabalCradleDependencies rootDir = do
-  cabalFiles <- findCabalFiles rootDir
-  return $ cabalFiles ++ ["cabal.project", "cabal.project.local"]
-
-findCabalFiles :: FilePath -> IO [FilePath]
-findCabalFiles wdir = do
-  dirContent <- listDirectory wdir
-  return $ filter ((== ".cabal") . takeExtension) dirContent
-
--- | GHC process information.
--- Consists of the filepath to the ghc executable and
--- arguments to the executable.
-type GhcProc = (FilePath, [String])
 
 cabalExecutable :: MaybeT IO FilePath
 cabalExecutable = MaybeT $ findExecutable "cabal"
@@ -130,17 +99,6 @@ cabalFile = findFileUpwards isCabal
 -- Stack Cradle
 -- Works for by invoking `stack repl` with a wrapper script
 
-stackCradleDependencies :: FilePath -> IO [FilePath]
-stackCradleDependencies wdir = do
-  cabalFiles <- findCabalFiles wdir
-  return $ cabalFiles ++ ["package.yaml", "stack.yaml"]
-
-combineExitCodes :: [ExitCode] -> ExitCode
-combineExitCodes = foldr go ExitSuccess
-  where
-    go ExitSuccess b = b
-    go a _ = a
-
 stackExecutable :: MaybeT IO FilePath
 stackExecutable = MaybeT $ findExecutable "stack"
 
@@ -158,17 +116,19 @@ stackYamlDir = findFileUpwards isStack
 -- to match the predicate.
 findSubdirUpwards :: (FilePath -> Bool) -> FilePath -> MaybeT IO FilePath
 findSubdirUpwards p dir = findContentUpwards p' dir
-  where p' subdir = do
-          exists <- doesDirectoryExist $ dir </> subdir
-          return $ (p subdir) && exists
+  where
+    p' subdir = do
+      exists <- doesDirectoryExist $ dir </> subdir
+      return $ (p subdir) && exists
 
 -- | Searches upwards for the first directory containing a file to match
 -- the predicate.
 findFileUpwards :: (FilePath -> Bool) -> FilePath -> MaybeT IO FilePath
 findFileUpwards p dir = findContentUpwards p' dir
-  where p' file = do
-          exists <- doesFileExist $ dir </> file
-          return $ (p file) && exists
+  where
+    p' file = do
+      exists <- doesFileExist $ dir </> file
+      return $ (p file) && exists
 
 findContentUpwards :: (FilePath -> IO Bool) -> FilePath -> MaybeT IO FilePath
 findContentUpwards p dir = do
