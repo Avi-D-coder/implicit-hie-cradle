@@ -117,7 +117,9 @@ cabalDistDir = findSubdirUpwards isCabal
 cabalProjectDir :: FilePath -> MaybeT IO FilePath
 cabalProjectDir = findFileUpwards isCabal
   where
-    isCabal name = name == "cabal.project"
+    isCabal "cabal.project" = True
+    isCabal "cabal.project.local" = True
+    isCabal _ = False
 
 cabalFile :: FilePath -> MaybeT IO FilePath
 cabalFile = findFileUpwards isCabal
