@@ -7,7 +7,7 @@ cabal-version:      1.12
 -- hash: 5c092074b2128d5593e67e2ace6e214ab27a89b73a7a71a71b212a4b34868b86
 
 name:               implicit-hie-cradle
-version:            0.3.0.3
+version:            0.3.0.4
 description:        Auto generate a stack or cabal multi component cradles
 category:           Development, Tools, Hie, HLS
 synopsis:           Auto generate hie-bios cradles
@@ -42,7 +42,7 @@ library
     , filepath              >=1.4.1   && <1.5
     , hie-bios              >=0.7.0
     , hslogger              >=1.2     && <1.4
-    , implicit-hie          >=0.1.2.5 && <1
+    , implicit-hie          >=0.1.2.6 && <1
     , process               >=1.6.1   && <1.7
     , temporary             >=1.2     && <1.4
     , text                  >=1.2.3   && <1.3
