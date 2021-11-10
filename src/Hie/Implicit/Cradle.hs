@@ -14,6 +14,7 @@ where
 import Control.Applicative ((<|>))
 import Control.Exception (handleJust)
 import Control.Monad
+import Control.Monad.Extra (ifM)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Maybe
 import Data.Maybe
@@ -27,6 +28,7 @@ import Hie.Yaml
 import System.Directory hiding (findFile)
 import System.FilePath
 import System.IO.Error (isPermissionError)
+import System.Process (readProcess)
 
 -- | Given root\/foo\/bar.hs, load an implicit cradle
 loadImplicitHieCradle :: FilePath -> IO (Cradle a)
@@ -64,7 +66,7 @@ implicitConfig' fp =
       c <- cn <$> readPkgs cc gp p
       pure (c, p)
     cabal :: FilePath -> MaybeT IO (CradleType a, FilePath)
-    cabal = build (CabalMulti mempty) cabalComponent' cabalPkgs
+    cabal = ifM ((>= "3.4") <$> liftIO cabalVersion) (pure (Cabal mempty, mempty)) . build (CabalMulti mempty) cabalComponent' cabalPkgs
     stack :: FilePath -> MaybeT IO (CradleType a, FilePath)
     stack = build (StackMulti mempty) stackComponent' stackYamlPkgs
     components f (Package n cs) = map (f n) cs
@@ -157,3 +159,6 @@ findContent p dir = do
 
 biosWorkDir :: FilePath -> MaybeT IO FilePath
 biosWorkDir = findFileUpwards (".hie-bios" ==)
+
+cabalVersion :: IO String
+cabalVersion = (!! 2) . words <$> readProcess "cabal" ["--version"] ""
