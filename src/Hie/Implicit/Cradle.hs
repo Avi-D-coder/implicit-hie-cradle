@@ -66,7 +66,7 @@ implicitConfig' fp =
       c <- cn <$> readPkgs cc gp p
       pure (c, p)
     cabal :: FilePath -> MaybeT IO (CradleType a, FilePath)
-    cabal = ifM ((>= "3.4") <$> liftIO cabalVersion) (pure (Cabal mempty, mempty)) . build (CabalMulti mempty) cabalComponent' cabalPkgs
+    cabal = ifM ((>= "3.4.0.0") <$> liftIO cabalVersion) (pure (Cabal mempty, mempty)) . build (CabalMulti mempty) cabalComponent' cabalPkgs
     stack :: FilePath -> MaybeT IO (CradleType a, FilePath)
     stack = build (StackMulti mempty) stackComponent' stackYamlPkgs
     components f (Package n cs) = map (f n) cs
@@ -161,4 +161,4 @@ biosWorkDir :: FilePath -> MaybeT IO FilePath
 biosWorkDir = findFileUpwards (".hie-bios" ==)
 
 cabalVersion :: IO String
-cabalVersion = (!! 2) . words <$> readProcess "cabal" ["--version"] ""
+cabalVersion = head . words <$> readProcess "cabal" ["--numeric-version"] ""
