@@ -66,7 +66,7 @@ implicitConfig' fp =
       c <- cn <$> readPkgs cc gp p
       pure (c, p)
     cabal :: FilePath -> MaybeT IO (CradleType a, FilePath)
-    cabal = ifM ((>= "3.4.0.0") <$> liftIO cabalVersion) (pure (Cabal mempty, mempty)) . build (CabalMulti mempty) cabalComponent' cabalPkgs
+    cabal fp = ifM ((>= "3.4") <$> liftIO cabalVersion) (pure (Cabal mempty, fp)) (build (CabalMulti mempty) cabalComponent' cabalPkgs fp)
     stack :: FilePath -> MaybeT IO (CradleType a, FilePath)
     stack = build (StackMulti mempty) stackComponent' stackYamlPkgs
     components f (Package n cs) = map (f n) cs
