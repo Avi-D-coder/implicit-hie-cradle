@@ -41,7 +41,6 @@ library
     , extra                 >=1.6.14  && <1.8
     , filepath              >=1.4.1   && <1.5
     , hie-bios              >=0.7.0
-    , hslogger              >=1.2     && <1.4
     , implicit-hie          >=0.1.2.6 && <1
     , process               >=1.6.1   && <1.7
     , temporary             >=1.2     && <1.4
